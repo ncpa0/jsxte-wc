@@ -11,7 +11,7 @@
 /.eslintrc.json
 /.gitignore
 /.prettierignore
-/.prettierrc.json
+/.prettierrc.*
 /.yarn
 /.yarnrc.yml
 /git-hook-tasks.config.json
