@@ -3,6 +3,15 @@ import { ElementLifecycleEvent } from "./element-events";
 
 export type AttributeOptions = {
   type?: "boolean" | "number" | "string";
+  /**
+   * By default the decorated property name will be used as the
+   * attribute name.
+   *
+   * By specifying this option, you can override that value.
+   *
+   * Attribute name will always be converted to lowercase.
+   */
+  name?: string;
 };
 
 function attribValueParserFactory<V>(
@@ -32,7 +41,9 @@ export function Attribute(opts: AttributeOptions = {}) {
     accessor: ClassAccessorDecoratorTarget<E, V>,
     context: ClassAccessorDecoratorContext<E, V>,
   ): ClassAccessorDecoratorResult<E, V> => {
-    const attributeName = (context.name as string).toLowerCase();
+    const attributeName = (
+      opts.name ?? (context.name as string)
+    ).toLowerCase();
     const valueParser = attribValueParserFactory<V>(
       opts.type ?? "string",
     );
