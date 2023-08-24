@@ -28,6 +28,7 @@ export class VirtualElement {
   public readonly elementName: ElementName;
   public readonly element: HTMLElement;
 
+  private lastUpdatedAttributes: string[] = [];
   private children: Array<VirtualElement | VirtualTextNode> = [];
   private readonly attributes = new ArrayMap<
     string,
@@ -53,6 +54,8 @@ export class VirtualElement {
   }
 
   private updateAttributes(attributes: JsonAttribute[]): void {
+    const updatedAttributes: string[] = [];
+
     for (let i = 0; i < attributes.length; i++) {
       const attribute = attributes[i]!;
 
@@ -63,7 +66,18 @@ export class VirtualElement {
       }
 
       this.setAttribute(attribute);
+      updatedAttributes.push(attribute[0]);
     }
+
+    for (let i = 0; i < this.lastUpdatedAttributes.length; i++) {
+      const attributeName = this.lastUpdatedAttributes[i]!;
+      if (!updatedAttributes.includes(attributeName)) {
+        const attrSetter = this.attributes.get(attributeName)!;
+        attrSetter(undefined);
+      }
+    }
+
+    this.lastUpdatedAttributes = updatedAttributes;
   }
 
   private updateChildren(children: Array<JsxteJson | string>): void {
