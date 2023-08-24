@@ -28,6 +28,7 @@ export class VirtualElement {
   public readonly elementName: ElementName;
   public readonly element: HTMLElement;
 
+  private ref?: { current: HTMLElement | null };
   private lastUpdatedAttributes: string[] = [];
   private children: Array<VirtualElement | VirtualTextNode> = [];
   private readonly attributes = new ArrayMap<
@@ -62,6 +63,7 @@ export class VirtualElement {
       if (attribute[0] === "ref") {
         const ref = attribute[1] as any as { current: HTMLElement };
         ref.current = this.element;
+        this.ref = ref;
         continue;
       }
 
@@ -85,7 +87,9 @@ export class VirtualElement {
 
     if (this.children.length > children.length) {
       for (let i = children.length; i < this.children.length; i++) {
-        this.element.removeChild(this.children[i]!.element);
+        const child = this.children[i]!;
+        this.element.removeChild(child.element);
+        child.cleanup();
       }
       this.children.splice(children.length);
     }
@@ -130,5 +134,15 @@ export class VirtualElement {
   public update(elemJson: JsxteJson): void {
     this.updateAttributes(elemJson.attributes);
     this.updateChildren(elemJson.children);
+  }
+
+  public cleanup(): void {
+    if (this.ref) {
+      this.ref.current = null;
+    }
+
+    for (let i = 0; i < this.children.length; i++) {
+      this.children[i]!.cleanup();
+    }
   }
 }

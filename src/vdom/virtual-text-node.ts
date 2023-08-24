@@ -11,4 +11,6 @@ export class VirtualTextNode {
     this.text = text;
     this.element.textContent = text;
   }
+
+  public cleanup(): void {}
 }

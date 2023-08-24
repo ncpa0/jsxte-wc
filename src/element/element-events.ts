@@ -1,4 +1,4 @@
-export enum CustomElementEvent {
+export enum ElementLifecycleEvent {
   WillUpdate = "element-will-update",
   DidUpdate = "element-did-update",
   DidMount = "element-did-mount",
@@ -7,40 +7,44 @@ export enum CustomElementEvent {
 }
 
 export class ElementWillUpdateEvent extends CustomEvent<undefined> {
-  declare type: CustomElementEvent.WillUpdate;
+  declare type: ElementLifecycleEvent.WillUpdate;
 
   constructor() {
-    super(CustomElementEvent.WillUpdate);
+    super(ElementLifecycleEvent.WillUpdate);
   }
 }
 
 export class ElementDidUpdateEvent extends CustomEvent<undefined> {
-  declare type: CustomElementEvent.DidUpdate;
+  declare type: ElementLifecycleEvent.DidUpdate;
 
   constructor() {
-    super(CustomElementEvent.DidUpdate);
+    super(ElementLifecycleEvent.DidUpdate);
   }
 }
 
 export class ElementDidMountEvent extends CustomEvent<
   HTMLElement | Text
 > {
-  declare type: CustomElementEvent.DidMount;
+  declare type: ElementLifecycleEvent.DidMount;
 
   constructor(elem: HTMLElement | Text) {
-    super(CustomElementEvent.DidMount, { detail: elem });
+    super(ElementLifecycleEvent.DidMount, { detail: elem });
   }
 }
 
 export class ElementStateDidChangeEvent extends CustomEvent<{
   stateName: string;
-  prevValue: any;
-  newValue: any;
+  prevValue: unknown;
+  newValue: unknown;
 }> {
-  declare type: CustomElementEvent.StateDidChange;
+  declare type: ElementLifecycleEvent.StateDidChange;
 
-  constructor(stateName: string, prevValue: any, newValue: any) {
-    super(CustomElementEvent.StateDidChange, {
+  constructor(
+    stateName: string,
+    prevValue: unknown,
+    newValue: unknown,
+  ) {
+    super(ElementLifecycleEvent.StateDidChange, {
       detail: {
         stateName,
         prevValue,
@@ -52,13 +56,17 @@ export class ElementStateDidChangeEvent extends CustomEvent<{
 
 export class ElementAttributeDidChangeEvent extends CustomEvent<{
   attributeName: string;
-  prevValue: any;
-  newValue: any;
+  prevValue: unknown;
+  newValue: unknown;
 }> {
-  declare type: CustomElementEvent.AttributeDidChange;
+  declare type: ElementLifecycleEvent.AttributeDidChange;
 
-  constructor(attributeName: string, prevValue: any, newValue: any) {
-    super(CustomElementEvent.AttributeDidChange, {
+  constructor(
+    attributeName: string,
+    prevValue: unknown,
+    newValue: unknown,
+  ) {
+    super(ElementLifecycleEvent.AttributeDidChange, {
       detail: {
         attributeName,
         prevValue,
@@ -68,7 +76,7 @@ export class ElementAttributeDidChangeEvent extends CustomEvent<{
   }
 }
 
-export type CustomEvents =
+export type AllElementLifecycleEvents =
   | ElementWillUpdateEvent
   | ElementDidUpdateEvent
   | ElementDidMountEvent

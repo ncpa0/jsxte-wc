@@ -13,7 +13,7 @@ import { RequestBatch } from "./request-batch";
 export abstract class Element extends HTMLElement {
   private _rootElement?: VirtualElement | VirtualTextNode;
   private _requestBatch = new RequestBatch(() => this._updateDom());
-  private _mutationObserver = new MutationObserver((a) =>
+  private _attributeObserver = new MutationObserver((a) =>
     this._handleAttributeChange(a),
   );
   private _observedAttributes: string[] = [];
@@ -91,7 +91,7 @@ export abstract class Element extends HTMLElement {
   public connectedCallback(): void {
     this._isConnected = true;
 
-    this._mutationObserver.observe(this, {
+    this._attributeObserver.observe(this, {
       attributeFilter: this._observedAttributes,
       attributes: true,
       childList: false,
@@ -103,7 +103,7 @@ export abstract class Element extends HTMLElement {
 
   public disconnectedCallback(): void {
     this._isConnected = false;
-    this._mutationObserver.disconnect();
+    this._attributeObserver.disconnect();
   }
 
   protected abstract render(): JSX.Element;

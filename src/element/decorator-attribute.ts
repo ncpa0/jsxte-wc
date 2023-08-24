@@ -1,5 +1,5 @@
 import { Element } from "./element";
-import { CustomElementEvent } from "./element-events";
+import { ElementLifecycleEvent } from "./element-events";
 
 export type AttributeOptions = {
   type?: "boolean" | "number" | "string";
@@ -41,12 +41,12 @@ export function Attribute(opts: AttributeOptions = {}) {
       this.observeAttribute(attributeName);
 
       this.lifecycle.addEventListener(
-        CustomElementEvent.AttributeDidChange,
+        ElementLifecycleEvent.AttributeDidChange,
         (event) => {
           if (event.detail.attributeName === attributeName) {
             accessor.set.call(
               this,
-              valueParser(event.detail.newValue),
+              valueParser(String(event.detail.newValue)),
             );
             this.requestUpdate();
           }

@@ -7,17 +7,18 @@
     "components",
     "jsx",
     "vdom",
+    "virtual dom",
     "reactive"
   ],
   "repository": {
     "type": "git",
-    "url": ""
+    "url": "https://github.com/ncpa0/jsxte-wc"
   },
   "description": "Build web components with JSXTE templates.",
   "license": "MIT",
   "author": {
     "name": "Szymon Bretner",
-    "email": ""
+    "email": "szymonb21@gmail.com"
   },
   "scripts": {
     "fix:format": "prettier -w ./src/**/*.ts",
@@ -26,13 +27,13 @@
     "build": "node ./scripts/build.mjs && tsc --emitDeclarationOnly"
   },
   "devDependencies": {
-    "esbuild": "^0.19.2",
+    "esbuild": "~0.19.2",
     "git-hook-tasks": "ncpa0cpl/git-hook-tasks",
-    "husky": "^8.0.3",
-    "jsxte": "^3.1.0",
-    "prettier": "^3.0.2",
-    "prettier-plugin-jsdoc": "^1.0.1",
-    "typescript": "^5.1.6"
+    "husky": "~8.0.3",
+    "jsxte": "~3.1.0",
+    "prettier": "~3.0.2",
+    "prettier-plugin-jsdoc": "~1.0.1",
+    "typescript": "latest"
   },
   "peerDependencies": {
     "jsxte": "^3.1.0"

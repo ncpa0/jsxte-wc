@@ -1,15 +1,15 @@
 import {
-  CustomElementEvent,
-  CustomEvents,
+  AllElementLifecycleEvents,
+  ElementLifecycleEvent,
 } from "../element/element-events";
 
-type EventFor<EventType extends CustomElementEvent> = Extract<
-  CustomEvents,
+type EventFor<EventType extends ElementLifecycleEvent> = Extract<
+  AllElementLifecycleEvents,
   { type: EventType }
 >;
 
 export class EventEmitter extends (EventTarget as any) {
-  once<EventType extends CustomElementEvent>(
+  once<EventType extends ElementLifecycleEvent>(
     type: EventType,
     listener: (evt: EventFor<EventType>) => void,
     capture?: boolean,
@@ -20,7 +20,7 @@ export class EventEmitter extends (EventTarget as any) {
     });
   }
 
-  on<EventType extends CustomElementEvent>(
+  on<EventType extends ElementLifecycleEvent>(
     type: EventType,
     listener: (evt: EventFor<EventType>) => void,
     capture?: boolean,
@@ -30,14 +30,14 @@ export class EventEmitter extends (EventTarget as any) {
     });
   }
 
-  off<EventType extends CustomElementEvent>(
+  off<EventType extends ElementLifecycleEvent>(
     type: EventType,
     listener: (evt: EventFor<EventType>) => void,
   ): void {
     super.removeEventListener(type, listener as any);
   }
 
-  addEventListener<EventType extends CustomElementEvent>(
+  addEventListener<EventType extends ElementLifecycleEvent>(
     type: EventType,
     listener: (evt: EventFor<EventType>) => void,
     capture?: boolean,
@@ -47,14 +47,14 @@ export class EventEmitter extends (EventTarget as any) {
     });
   }
 
-  removeEventListener<EventType extends CustomElementEvent>(
+  removeEventListener<EventType extends ElementLifecycleEvent>(
     type: EventType,
     listener: (evt: EventFor<EventType>) => void,
   ): void {
     super.removeEventListener(type, listener as any);
   }
 
-  dispatchEvent<EventType extends CustomElementEvent>(
+  dispatchEvent<EventType extends ElementLifecycleEvent>(
     event: EventFor<EventType>,
   ): boolean {
     return super.dispatchEvent(event);
