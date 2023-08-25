@@ -79,6 +79,7 @@ export abstract class Element extends HTMLElement {
 
     this._attributeObserver.observe(this, {
       attributeFilter: this._observedAttributes,
+      attributeOldValue: true,
       attributes: true,
       childList: false,
       subtree: false,
