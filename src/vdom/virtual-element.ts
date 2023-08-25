@@ -25,6 +25,21 @@ export class VirtualElement {
     }
   }
 
+  static createFor(name: string, element: HTMLElement) {
+    const instance = Object.setPrototypeOf(
+      {
+        elementName: name,
+        element: element,
+        lastUpdatedAttributes: [],
+        children: [],
+        attributes: new ArrayMap(),
+      },
+      VirtualElement.prototype,
+    );
+
+    return instance;
+  }
+
   public readonly elementName: ElementName;
   public readonly element: HTMLElement;
 
@@ -54,7 +69,7 @@ export class VirtualElement {
     setter(attr[1]);
   }
 
-  private updateAttributes(attributes: JsonAttribute[]): void {
+  public updateAttributes(attributes: JsonAttribute[]): void {
     const updatedAttributes: string[] = [];
 
     for (let i = 0; i < attributes.length; i++) {
@@ -82,7 +97,7 @@ export class VirtualElement {
     this.lastUpdatedAttributes = updatedAttributes;
   }
 
-  private updateChildren(children: Array<JsxteJson | string>): void {
+  public updateChildren(children: Array<JsxteJson | string>): void {
     children = expandFragments(children);
 
     if (this.children.length > children.length) {
@@ -129,6 +144,17 @@ export class VirtualElement {
         }
       }
     }
+  }
+
+  public getChildElements(): Array<HTMLElement | Text> {
+    const result: Array<HTMLElement | Text> = [];
+
+    for (let i = 0; i < this.children.length; i++) {
+      const child = this.children[i]!;
+      result.push(child.element);
+    }
+
+    return result;
   }
 
   public update(elemJson: JsxteJson): void {

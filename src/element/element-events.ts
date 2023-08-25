@@ -22,13 +22,11 @@ export class ElementDidUpdateEvent extends CustomEvent<undefined> {
   }
 }
 
-export class ElementDidMountEvent extends CustomEvent<
-  HTMLElement | Text
-> {
+export class ElementDidMountEvent extends CustomEvent<undefined> {
   declare type: ElementLifecycleEvent.DidMount;
 
-  constructor(elem: HTMLElement | Text) {
-    super(ElementLifecycleEvent.DidMount, { detail: elem });
+  constructor() {
+    super(ElementLifecycleEvent.DidMount);
   }
 }
 
