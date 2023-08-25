@@ -21,6 +21,21 @@ export function attributeSetterFactory(
 
       lastValue = value;
     };
+  } else if (attr === "value" && "value" in element) {
+    let lastValue: string | undefined = attr[1];
+
+    return (value: any): void => {
+      if (value === lastValue) return;
+
+      lastValue = value;
+      if (value == null || value === false) {
+        element.removeAttribute(attr);
+        element.value = "";
+      } else {
+        element.setAttribute(attr, value);
+        element.value = value;
+      }
+    };
   } else {
     let lastValue: string | undefined = attr[1];
 
