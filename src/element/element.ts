@@ -1,7 +1,6 @@
-import { renderToJson } from "jsxte";
+import { JsxteJson, renderToJson } from "jsxte";
 import { EventEmitter } from "../utils/event-emitter";
 import { VirtualElement } from "../vdom/virtual-element";
-import { VirtualTextNode } from "../vdom/virtual-text-node";
 import {
   ElementAttributeDidChangeEvent,
   ElementDidMountEvent,
@@ -11,7 +10,8 @@ import {
 import { RequestBatch } from "./request-batch";
 
 export abstract class Element extends HTMLElement {
-  private _rootElement?: VirtualElement | VirtualTextNode;
+  private _vroot?: VirtualElement;
+  private _root = this;
   private _requestBatch = new RequestBatch(() => this._updateDom());
   private _attributeObserver = new MutationObserver((a) =>
     this._handleAttributeChange(a),
@@ -25,39 +25,25 @@ export abstract class Element extends HTMLElement {
     super();
   }
 
+  private _performFirstMount(
+    content: Array<JsxteJson | string>,
+  ): void {
+    this._vroot = VirtualElement.createFor("<root>", this._root);
+    this._vroot!.updateChildren(content);
+
+    this.lifecycle.dispatchEvent(new ElementDidMountEvent());
+  }
+
   private _updateDom(): void {
     this.lifecycle.dispatchEvent(new ElementWillUpdateEvent());
 
     const jsxElem = this.render();
     const json = renderToJson(jsxElem);
 
-    if (this._rootElement) {
-      if (typeof json === "string") {
-        if (this._rootElement.elementName !== "text-node") {
-          this._rootElement = new VirtualTextNode(json);
-          this.replaceChildren(this._rootElement.element);
-        } else {
-          this._rootElement.update(json);
-        }
-      } else {
-        if (this._rootElement.elementName !== json.element) {
-          this._rootElement = new VirtualElement(json);
-          this.replaceChildren(this._rootElement.element);
-        } else {
-          this._rootElement.update(json);
-        }
-      }
+    if (this._vroot) {
+      this._vroot.updateChildren([json]);
     } else {
-      if (typeof json === "string") {
-        this._rootElement = new VirtualTextNode(json);
-        this.replaceChildren(this._rootElement.element);
-      } else {
-        this._rootElement = new VirtualElement(json);
-        this.replaceChildren(this._rootElement.element);
-      }
-      this.lifecycle.dispatchEvent(
-        new ElementDidMountEvent(this._rootElement!.element),
-      );
+      this._performFirstMount([json]);
     }
 
     this.lifecycle.dispatchEvent(new ElementDidUpdateEvent());
