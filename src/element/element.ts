@@ -16,6 +16,8 @@ export type Dependency<T> = {
   name: string;
 };
 
+const noop = () => {};
+
 export abstract class Element extends HTMLElement {
   private _vroot?: VirtualElement;
   private _root = this;
@@ -126,7 +128,7 @@ export abstract class Element extends HTMLElement {
    */
   public effect<E extends Element>(
     this: E,
-    callback: Function,
+    cb: () => void | (() => void),
     getDependencies: (select: {
       [K in keyof Omit<E, keyof Element | "render">]: Dependency<
         E[K]
@@ -134,6 +136,12 @@ export abstract class Element extends HTMLElement {
     }) => Dependency<any>[] | void,
   ): () => void {
     const deps = getDependencies(this._dependencySelector);
+
+    let cleanup = noop;
+    const callback = () => {
+      cleanup();
+      cleanup = cb() || noop;
+    };
 
     if (!deps) {
       const updateHandler = () => callback;
@@ -232,7 +240,7 @@ export abstract class Element extends HTMLElement {
    */
   public immediateEffect<E extends Element>(
     this: E,
-    callback: Function,
+    cb: () => void | (() => void),
     getDependencies: (select: {
       [K in keyof Omit<E, keyof Element | "render">]: Dependency<
         E[K]
@@ -240,6 +248,12 @@ export abstract class Element extends HTMLElement {
     }) => Dependency<any>[] | void,
   ): () => void {
     const deps = getDependencies(this._dependencySelector);
+
+    let cleanup = noop;
+    const callback = () => {
+      cleanup();
+      cleanup = cb() || noop;
+    };
 
     if (!deps) {
       const updateHandler = () => callback;
