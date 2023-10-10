@@ -13,6 +13,7 @@ async function main() {
    * @type {import("esbuild").BuildOptions}
    */
   const bldOptions = {
+    target: "es2022",
     format: "esm",
     tsconfig: p("tsconfig.json"),
     entryPoints: [p("src/index.ts")],

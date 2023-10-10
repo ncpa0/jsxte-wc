@@ -24,6 +24,7 @@
     "fix:format": "prettier -w ./src/**/*.ts",
     "test:format": "prettier -c ./src/**/*.ts",
     "test:tsc": "tsc --noEmit",
+    "build:dev": "node ./scripts/build.mjs --dev && tsc --emitDeclarationOnly",
     "build": "node ./scripts/build.mjs && tsc --emitDeclarationOnly"
   },
   "devDependencies": {

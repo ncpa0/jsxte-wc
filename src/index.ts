@@ -1,7 +1,9 @@
 export { Attribute } from "./element/decorator-attribute";
 export { CustomElement } from "./element/decorator-custom-element";
 export { State } from "./element/decorator-state";
+export { Slotted } from "./element/decorator-slotted";
 export { Element } from "./element/element";
+export { WcSlot } from "./element/slot";
 export * from "./element/element-events";
 export { ElementLifecycleEvent } from "./element/element-events";
 
