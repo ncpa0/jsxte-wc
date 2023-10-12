@@ -1,3 +1,27 @@
+export class SlotAttributeChangeEvent extends CustomEvent<{
+  node: WcSlot;
+}> {
+  constructor(node: WcSlot) {
+    super("slotattributechange", {
+      bubbles: true,
+      cancelable: true,
+      detail: { node },
+    });
+  }
+}
+
+export class SlotContentChangeEvent extends CustomEvent<{
+  node: WcSlot;
+}> {
+  constructor(node: WcSlot) {
+    super("slotcontentchange", {
+      bubbles: true,
+      cancelable: true,
+      detail: { node },
+    });
+  }
+}
+
 export class WcSlot extends HTMLElement {
   _isWcSlot = true;
   public static isSlot(elem: Element | Node): elem is WcSlot {
@@ -28,14 +52,10 @@ export class WcSlot extends HTMLElement {
     }
 
     if (hasAttributeChanged) {
-      this.emitter.dispatchEvent(
-        new CustomEvent("slotattributechange"),
-      );
+      this.emitter.dispatchEvent(new SlotAttributeChangeEvent(this));
     }
     if (hasContentChanged) {
-      this.emitter.dispatchEvent(
-        new CustomEvent("slotcontentchange"),
-      );
+      this.emitter.dispatchEvent(new SlotContentChangeEvent(this));
     }
   }
 

@@ -7,6 +7,7 @@ const p = (...fpath) => path.resolve(__dirname, "..", ...fpath);
 
 const isDev = process.argv.includes("--dev");
 const watch = process.argv.includes("--watch");
+const noSourceMap = process.argv.includes("--no-source-map");
 
 async function main() {
   /**
@@ -18,11 +19,12 @@ async function main() {
     tsconfig: p("tsconfig.json"),
     entryPoints: [p("src/index.ts")],
     outdir: p("dist"),
+    external: ["jsxte"],
     bundle: true,
     keepNames: true,
     treeShaking: !isDev,
     minify: !isDev,
-    sourcemap: isDev ? "inline" : false,
+    sourcemap: noSourceMap ? false : isDev ? "inline" : false,
   };
 
   if (watch) {

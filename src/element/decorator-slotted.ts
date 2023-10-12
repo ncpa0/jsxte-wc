@@ -9,6 +9,7 @@ export type SlotChanges = {
   added: WcSlot[];
   removed: WcSlot[];
   updated: WcSlot[];
+  changed: WcSlot[];
 };
 
 export type OnSlotChangeCallback = (changes: SlotChanges) => void;
@@ -109,17 +110,29 @@ export function Slotted(opts: SlottedOptions = {}) {
           this.lifecycle.dispatchEvent(
             new ElementSlotDidChangeEvent(context.name as string),
           );
+        } else if (changes.changed.length > 0) {
+          accessor.set.call(this, [...accessor.get.call(this)]);
+          this.requestUpdate();
+          this.lifecycle.dispatchEvent(
+            new ElementSlotDidChangeEvent(context.name as string),
+          );
         }
       });
 
       this.lifecycle.once(ElementLifecycleEvent.DidMount, () => {
-        const initValues = Array.from(this.children).filter(
-          (elem): elem is S => {
-            return WcSlot.isSlot(elem) && matches(elem as S);
-          },
-        );
+        const children = Array.from(this.children);
 
-        accessor.set.call(this, initValues);
+        const initValue: S[] = [];
+        for (let i = 0; i < children.length; i++) {
+          const elem = children[i]!;
+
+          if (WcSlot.isSlot(elem) && matches(elem as S)) {
+            initValue.push(elem as S);
+            this.connectToWcSlot(elem);
+          }
+        }
+
+        accessor.set.call(this, initValue);
 
         this.requestUpdate();
         this.lifecycle.dispatchEvent(

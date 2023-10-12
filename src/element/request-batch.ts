@@ -1,7 +1,7 @@
 export class RequestBatch {
   private status: "idle" | "waiting" = "idle";
 
-  constructor(private readonly callback: () => void) {}
+  constructor(private readonly callback: () => () => void) {}
 
   public request(): void {
     if (this.status === "waiting") {
@@ -11,10 +11,12 @@ export class RequestBatch {
     this.status = "waiting";
 
     queueMicrotask(() => {
+      let runAfter: (() => void) | undefined;
       try {
-        this.callback();
+        runAfter = this.callback();
       } finally {
         this.status = "idle";
+        runAfter?.();
       }
     });
   }

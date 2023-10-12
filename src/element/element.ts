@@ -1,6 +1,7 @@
-import { JsxteJson, renderToJson } from "jsxte";
+import { renderToJson } from "jsxte";
 import { EventEmitter } from "../utils/event-emitter";
 import { VirtualElement } from "../vdom/virtual-element";
+import { OnSlotChangeCallback } from "./decorator-slotted";
 import {
   ElementAttributeDidChangeEvent,
   ElementDidMountEvent,
@@ -12,8 +13,11 @@ import {
   ElementWillUpdateEvent,
 } from "./element-events";
 import { RequestBatch } from "./request-batch";
-import { OnSlotChangeCallback } from "./decorator-slotted";
-import { WcSlot } from "./slot";
+import {
+  SlotAttributeChangeEvent,
+  SlotContentChangeEvent,
+  WcSlot,
+} from "./slot";
 
 export type Dependency<T> = {
   getValue: () => T;
@@ -62,32 +66,31 @@ export abstract class Element extends HTMLElement {
     super();
   }
 
-  private _performFirstMount(
-    content: Array<JsxteJson | string>,
-  ): void {
-    this._vroot = VirtualElement.createFor("<root>", this._root);
-    this._vroot!.updateChildren(content);
-
-    queueMicrotask(() => {
-      this.lifecycle.dispatchEvent(new ElementDidMountEvent());
-    });
-  }
-
-  private _updateDom(): void {
-    this.lifecycle.dispatchEvent(new ElementWillUpdateEvent());
-
+  private _performFirstMount(): () => void {
+    this.lifecycle.dispatchEvent(new ElementWillMountEvent());
     const jsxElem = this.render();
     const json = renderToJson(jsxElem);
+    this._vroot = VirtualElement.createFor("<root>", this._root);
+    this._vroot!.updateChildren([json]);
+    return () =>
+      this.lifecycle.dispatchEvent(new ElementDidMountEvent());
+  }
 
-    if (this._vroot) {
-      this._vroot.updateChildren([json]);
-    } else {
-      this._performFirstMount([json]);
-    }
-
-    queueMicrotask(() => {
+  private _preformNextUpdate(): () => void {
+    this.lifecycle.dispatchEvent(new ElementWillUpdateEvent());
+    const jsxElem = this.render();
+    const json = renderToJson(jsxElem);
+    this._vroot!.updateChildren([json]);
+    return () =>
       this.lifecycle.dispatchEvent(new ElementDidUpdateEvent());
-    });
+  }
+
+  private _updateDom(): () => void {
+    if (this._vroot) {
+      return this._preformNextUpdate();
+    } else {
+      return this._performFirstMount();
+    }
   }
 
   private _handleObserverEvent(mutationRecord: MutationRecord[]) {
@@ -115,14 +118,7 @@ export abstract class Element extends HTMLElement {
       const node = record.addedNodes[j]!;
       if (WcSlot.isSlot(node)) {
         added.push(node);
-        node.emitter.addEventListener(
-          "slotcontentchange",
-          this.handleSlotContentChange,
-        );
-        node.emitter.addEventListener(
-          "slotattributechange",
-          this.handleSlotAttributeChange.bind(this, node),
-        );
+        this.connectToWcSlot(node);
       }
     }
 
@@ -130,29 +126,60 @@ export abstract class Element extends HTMLElement {
       const node = record.removedNodes[j]!;
       if (WcSlot.isSlot(node)) {
         removed.push(node);
-        node.emitter.removeEventListener(
-          "slotcontentchange",
-          this.handleSlotContentChange,
-        );
-        node.emitter.removeEventListener(
-          "slotattributechange",
-          this.handleSlotAttributeChange.bind(this, node),
-        );
+        this.disconnectFromWcSlot(node);
       }
     }
 
     for (const listener of this._slotChangeListeners) {
-      listener({ added, removed, updated: [] });
+      listener({ added, removed, updated: [], changed: [] });
     }
   }
 
-  public handleSlotContentChange = () => {
-    this.requestUpdate();
+  public connectToWcSlot(node: WcSlot) {
+    node.emitter.addEventListener(
+      "slotcontentchange",
+      this.handleSlotContentChange as any,
+    );
+    node.emitter.addEventListener(
+      "slotattributechange",
+      this.handleSlotAttributeChange as any,
+    );
+  }
+
+  public disconnectFromWcSlot(node: WcSlot) {
+    node.emitter.removeEventListener(
+      "slotcontentchange",
+      this.handleSlotContentChange as any,
+    );
+    node.emitter.removeEventListener(
+      "slotattributechange",
+      this.handleSlotAttributeChange as any,
+    );
+  }
+
+  public handleSlotContentChange = (
+    event: SlotContentChangeEvent,
+  ) => {
+    for (const listener of this._slotChangeListeners) {
+      listener({
+        changed: [event.detail.node],
+        updated: [],
+        added: [],
+        removed: [],
+      });
+    }
   };
 
-  public handleSlotAttributeChange = (slot: WcSlot) => {
+  public handleSlotAttributeChange = (
+    event: SlotAttributeChangeEvent,
+  ) => {
     for (const listener of this._slotChangeListeners) {
-      listener({ updated: [slot], added: [], removed: [] });
+      listener({
+        changed: [event.detail.node],
+        updated: [event.detail.node],
+        added: [],
+        removed: [],
+      });
     }
   };
 
@@ -184,7 +211,6 @@ export abstract class Element extends HTMLElement {
       subtree: false,
     });
 
-    this.lifecycle.dispatchEvent(new ElementWillMountEvent());
     this.requestUpdate();
   }
 
@@ -219,30 +245,16 @@ export abstract class Element extends HTMLElement {
     };
 
     if (!deps) {
-      const updateHandler = () => callback;
-      this.lifecycle.on(
-        ElementLifecycleEvent.DidUpdate,
-        updateHandler,
-      );
+      this.lifecycle.on(ElementLifecycleEvent.DidUpdate, callback);
       return () => {
-        this.lifecycle.off(
-          ElementLifecycleEvent.DidUpdate,
-          updateHandler,
-        );
+        this.lifecycle.off(ElementLifecycleEvent.DidUpdate, callback);
       };
     }
 
     if (deps.length === 0) {
-      const updateHandler = () => callback;
-      this.lifecycle.once(
-        ElementLifecycleEvent.DidMount,
-        updateHandler,
-      );
+      this.lifecycle.once(ElementLifecycleEvent.DidMount, callback);
       return () => {
-        this.lifecycle.off(
-          ElementLifecycleEvent.DidMount,
-          updateHandler,
-        );
+        this.lifecycle.off(ElementLifecycleEvent.DidMount, callback);
       };
     }
 
@@ -287,12 +299,12 @@ export abstract class Element extends HTMLElement {
       stateChangeHandler,
     );
     this.lifecycle.on(
-      ElementLifecycleEvent.DidUpdate,
-      didUpdateHandler,
-    );
-    this.lifecycle.on(
       ElementLifecycleEvent.SlotDidChange,
       slotChangeHandler,
+    );
+    this.lifecycle.on(
+      ElementLifecycleEvent.DidUpdate,
+      didUpdateHandler,
     );
 
     const stop = (): void => {
@@ -305,12 +317,12 @@ export abstract class Element extends HTMLElement {
         stateChangeHandler,
       );
       this.lifecycle.off(
-        ElementLifecycleEvent.DidUpdate,
-        didUpdateHandler,
-      );
-      this.lifecycle.off(
         ElementLifecycleEvent.SlotDidChange,
         slotChangeHandler,
+      );
+      this.lifecycle.off(
+        ElementLifecycleEvent.DidUpdate,
+        didUpdateHandler,
       );
     };
 
@@ -345,30 +357,19 @@ export abstract class Element extends HTMLElement {
     };
 
     if (!deps) {
-      const updateHandler = () => callback;
-      this.lifecycle.on(
-        ElementLifecycleEvent.WillUpdate,
-        updateHandler,
-      );
+      this.lifecycle.on(ElementLifecycleEvent.WillUpdate, callback);
       return () => {
         this.lifecycle.off(
           ElementLifecycleEvent.WillUpdate,
-          updateHandler,
+          callback,
         );
       };
     }
 
     if (deps.length === 0) {
-      const updateHandler = () => callback;
-      this.lifecycle.once(
-        ElementLifecycleEvent.DidMount,
-        updateHandler,
-      );
+      this.lifecycle.once(ElementLifecycleEvent.WillMount, callback);
       return () => {
-        this.lifecycle.off(
-          ElementLifecycleEvent.DidMount,
-          updateHandler,
-        );
+        this.lifecycle.off(ElementLifecycleEvent.WillMount, callback);
       };
     }
 
@@ -397,7 +398,7 @@ export abstract class Element extends HTMLElement {
       }
     };
 
-    const didUpdateHandler = () => {
+    const willUpdateHandler = () => {
       if (runCallbackOnNextUpdate) {
         runCallbackOnNextUpdate = false;
         callback();
@@ -413,12 +414,12 @@ export abstract class Element extends HTMLElement {
       stateChangeHandler,
     );
     this.lifecycle.on(
-      ElementLifecycleEvent.WillUpdate,
-      didUpdateHandler,
-    );
-    this.lifecycle.on(
       ElementLifecycleEvent.SlotDidChange,
       slotChangeHandler,
+    );
+    this.lifecycle.on(
+      ElementLifecycleEvent.WillUpdate,
+      willUpdateHandler,
     );
 
     const stop = (): void => {
@@ -431,12 +432,12 @@ export abstract class Element extends HTMLElement {
         stateChangeHandler,
       );
       this.lifecycle.off(
-        ElementLifecycleEvent.WillUpdate,
-        didUpdateHandler,
-      );
-      this.lifecycle.off(
         ElementLifecycleEvent.SlotDidChange,
         slotChangeHandler,
+      );
+      this.lifecycle.off(
+        ElementLifecycleEvent.WillUpdate,
+        willUpdateHandler,
       );
     };
 
@@ -445,5 +446,11 @@ export abstract class Element extends HTMLElement {
 
   protected abstract render(): JSX.Element;
 
-  public abstract getRootClassNames?(): string[];
+  /**
+   * Override this method to add additional class names to the root
+   * element.
+   *
+   * @returns An array of class names (string[])
+   */
+  public getRootClassNames?(): string[];
 }
