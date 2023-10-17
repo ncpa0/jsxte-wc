@@ -23,7 +23,7 @@ async function main() {
     bundle: true,
     keepNames: true,
     treeShaking: !isDev,
-    minify: !isDev,
+    minify: false,
     sourcemap: noSourceMap ? false : isDev ? "inline" : false,
   };
 
