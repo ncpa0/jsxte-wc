@@ -1,11 +1,11 @@
 export { Attribute } from "./element/decorator-attribute";
 export { CustomElement } from "./element/decorator-custom-element";
-export { State } from "./element/decorator-state";
 export { Slotted } from "./element/decorator-slotted";
+export { State } from "./element/decorator-state";
 export { Element } from "./element/element";
-export { WcSlot } from "./element/slot";
 export * from "./element/element-events";
 export { ElementLifecycleEvent } from "./element/element-events";
+export { WcSlot } from "./element/slot";
 
 type EventHandlerFunction<E extends Event = Event> = (
   event: E,
@@ -53,7 +53,7 @@ declare global {
       onfullscreenerror: EventHandlerFunction<Event>;
       ongotpointercapture: EventHandlerFunction<PointerEvent>;
       onhashchange: EventHandlerFunction<HashChangeEvent>;
-      oninput: EventHandlerFunction<Event>;
+      oninput: EventHandlerFunction<InputEvent>;
       oninvalid: EventHandlerFunction<Event>;
       onkeydown: EventHandlerFunction<KeyboardEvent>;
       onkeypress: EventHandlerFunction<KeyboardEvent>;
