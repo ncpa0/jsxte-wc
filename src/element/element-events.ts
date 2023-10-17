@@ -1,3 +1,5 @@
+import { FinalChanges, SlotChanges } from "./decorator-slotted";
+
 export enum ElementLifecycleEvent {
   WillUpdate = "element-will-update",
   DidUpdate = "element-did-update",
@@ -42,13 +44,15 @@ export class ElementDidMountEvent extends CustomEvent<undefined> {
 
 export class ElementSlotDidChangeEvent extends CustomEvent<{
   slotName: string;
+  changes: FinalChanges;
 }> {
   declare type: ElementLifecycleEvent.SlotDidChange;
 
-  constructor(slotName: string) {
+  constructor(slotName: string, changes: SlotChanges) {
     super(ElementLifecycleEvent.SlotDidChange, {
       detail: {
         slotName,
+        changes,
       },
     });
   }

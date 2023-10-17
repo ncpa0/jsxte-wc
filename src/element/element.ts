@@ -131,7 +131,12 @@ export abstract class Element extends HTMLElement {
     }
 
     for (const listener of this._slotChangeListeners) {
-      listener({ added, removed, updated: [], changed: [] });
+      listener({
+        added: added.slice(),
+        removed: removed.slice(),
+        attributeChanged: [],
+        contentChanged: [],
+      });
     }
   }
 
@@ -162,8 +167,8 @@ export abstract class Element extends HTMLElement {
   ) => {
     for (const listener of this._slotChangeListeners) {
       listener({
-        changed: [event.detail.node],
-        updated: [],
+        contentChanged: [event.detail.node],
+        attributeChanged: [],
         added: [],
         removed: [],
       });
@@ -175,8 +180,8 @@ export abstract class Element extends HTMLElement {
   ) => {
     for (const listener of this._slotChangeListeners) {
       listener({
-        changed: [event.detail.node],
-        updated: [event.detail.node],
+        contentChanged: [],
+        attributeChanged: [event.detail.node],
         added: [],
         removed: [],
       });
@@ -217,6 +222,15 @@ export abstract class Element extends HTMLElement {
   public disconnectedCallback(): void {
     this._isConnected = false;
     this._attributeObserver.disconnect();
+
+    const children = Array.from(this.children);
+
+    for (let i = 0; i < children.length; i++) {
+      const child = children[i]!;
+      if (WcSlot.isSlot(child)) {
+        this.disconnectFromWcSlot(child);
+      }
+    }
   }
 
   /**

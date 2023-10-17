@@ -6,16 +6,52 @@ import {
 import { WcSlot } from "./slot";
 
 export type SlotChanges = {
-  added: WcSlot[];
-  removed: WcSlot[];
-  updated: WcSlot[];
-  changed: WcSlot[];
+  /**
+   * List of direct children of the custom element.
+   */
+  readonly added: ReadonlyArray<WcSlot>;
+  /**
+   * List of children that were removed from the custom element.
+   */
+  readonly removed: ReadonlyArray<WcSlot>;
+  /**
+   * List of direct children of the custom element which content has
+   * changed.
+   */
+  readonly contentChanged: ReadonlyArray<WcSlot>;
+  /**
+   * List of direct children of the custom element which attributes
+   * have changed.
+   */
+  readonly attributeChanged: ReadonlyArray<WcSlot>;
 };
+
+export type FinalChanges = SlotChanges;
 
 export type OnSlotChangeCallback = (changes: SlotChanges) => void;
 
 export type SlottedOptions = {
   filter?: string | ((elem: WcSlot) => boolean);
+  /**
+   * Callback that allows to decide whether the custom element should
+   * re-render on given slot changes.
+   */
+  shouldRequestUpdate?: (
+    current: WcSlot[],
+    changes: SlotChanges,
+  ) => boolean;
+};
+
+const defaultShouldUpdate = <S extends WcSlot>(
+  current: S[],
+  changes: FinalChanges,
+): boolean => {
+  return (
+    changes.added.length > 0 ||
+    changes.removed.length > 0 ||
+    changes.contentChanged.length > 0 ||
+    changes.attributeChanged.length > 0
+  );
 };
 
 export function Slotted(opts: SlottedOptions = {}) {
@@ -23,100 +59,114 @@ export function Slotted(opts: SlottedOptions = {}) {
     accessor: ClassAccessorDecoratorTarget<E, S[]>,
     context: ClassAccessorDecoratorContext<E, S[]>,
   ): ClassAccessorDecoratorResult<E, S[]> => {
-    const { filter } = opts;
+    const { filter: optFilter } = opts;
 
-    let matches: (element: S) => boolean = () => true;
-    switch (typeof filter) {
+    let filter: (element: WcSlot) => boolean = () => true;
+    switch (typeof optFilter) {
       case "string":
-        if (filter[0] === ".") {
-          matches = (element) => {
-            return element.classList.contains(filter!.substring(1));
-          };
-        } else if (filter[0] === "#") {
-          matches = (element) => {
-            return element.id === filter!.substring(1);
-          };
-        } else {
-          matches = (element) => {
-            return (
-              element.tagName.toLowerCase() === filter!.toLowerCase()
-            );
-          };
-        }
+        filter = (elem) => elem.matches(optFilter);
         break;
       case "function":
-        matches = filter;
+        filter = optFilter;
         break;
     }
 
-    const removeSlots = (elem: E, slotsToRemove: S[]) => {
-      let slots = accessor.get.call(elem);
-      const prevLength = slots.length;
+    const { shouldRequestUpdate = defaultShouldUpdate } = opts;
 
-      slots = slots.filter((slot) => {
-        return !slotsToRemove.includes(slot);
-      });
+    const updateSlots = (elem: E, changes: SlotChanges) => {
+      let current = accessor.get.call(elem).slice();
 
-      accessor.set.call(elem, slots);
+      const shouldAdd = changes.added.filter(filter);
+      const shouldRemove = changes.removed;
 
-      return prevLength !== slots.length;
-    };
+      const added: WcSlot[] = [];
+      const removed: WcSlot[] = [];
+      const contentChanged: WcSlot[] = [];
+      const attributeChanged: WcSlot[] = [];
 
-    const addSlots = (elem: E, slotsToAdd: S[]) => {
-      let slots = accessor.get.call(elem).slice();
-      const prevLength = slots.length;
-
-      for (const slot of slotsToAdd) {
-        const isMatching = matches(slot);
-        if (isMatching) {
-          slots.push(slot);
-        }
-      }
-
-      accessor.set.call(elem, slots);
-
-      return prevLength !== slots.length;
-    };
-
-    const updateSlots = (elem: E, updatedSlots: S[]) => {
-      let slots = accessor.get.call(elem);
-      let hasChanged = false;
-
-      for (const slot of updatedSlots) {
-        if (matches(slot)) {
-          if (!slots.includes(slot)) {
-            addSlots(elem, [slot]);
-            hasChanged = true;
+      for (let i = 0; i < changes.attributeChanged.length; i++) {
+        const slot = changes.attributeChanged[i] as S;
+        if (filter(slot)) {
+          const idx = current.indexOf(slot);
+          if (idx === -1) {
+            current.push(slot);
+            added.push(slot);
+          } else {
+            attributeChanged.push(slot);
           }
         } else {
-          if (slots.includes(slot)) {
-            removeSlots(elem, [slot]);
-            hasChanged = true;
+          const idx = current.indexOf(shouldRemove[i] as S);
+          if (idx !== -1) {
+            current.splice(idx, 1);
+            removed.push(slot);
           }
         }
       }
 
-      return hasChanged;
+      for (let i = 0; i < changes.contentChanged.length; i++) {
+        const slot = changes.contentChanged[i] as S;
+        if (filter(slot)) {
+          const idx = current.indexOf(slot);
+          if (idx === -1) {
+            current.push(slot);
+            added.push(slot);
+          } else {
+            contentChanged.push(slot);
+          }
+        } else {
+          const idx = current.indexOf(shouldRemove[i] as S);
+          if (idx !== -1) {
+            current.splice(idx, 1);
+            removed.push(slot);
+          }
+        }
+      }
+
+      for (let i = 0; i < shouldRemove.length; i++) {
+        const idx = current.indexOf(shouldRemove[i] as S);
+        if (idx !== -1) {
+          current.splice(idx, 1);
+          removed.push(shouldRemove[i] as S);
+        }
+      }
+
+      for (let i = 0; i < shouldAdd.length; i++) {
+        const slot = shouldAdd[i] as S;
+        const idx = current.indexOf(slot);
+        if (idx === -1) {
+          current.push(slot);
+          added.push(slot);
+        }
+      }
+
+      accessor.set.call(elem, current);
+
+      const finalChanges: FinalChanges = {
+        added,
+        removed,
+        contentChanged,
+        attributeChanged,
+      };
+
+      return finalChanges;
     };
 
     context.addInitializer(function () {
       this.observeSlots((changes) => {
-        const hasRemoved = removeSlots(this, changes.removed as S[]);
-        const hasAdded = addSlots(this, changes.added as S[]);
-        const hasUpdated = updateSlots(this, changes.updated as S[]);
+        const finalChanges = updateSlots(this, changes);
 
-        if (hasRemoved || hasAdded || hasUpdated) {
+        if (
+          shouldRequestUpdate(accessor.get.call(this), finalChanges)
+        ) {
           this.requestUpdate();
-          this.lifecycle.dispatchEvent(
-            new ElementSlotDidChangeEvent(context.name as string),
-          );
-        } else if (changes.changed.length > 0) {
-          accessor.set.call(this, [...accessor.get.call(this)]);
-          this.requestUpdate();
-          this.lifecycle.dispatchEvent(
-            new ElementSlotDidChangeEvent(context.name as string),
-          );
         }
+
+        this.lifecycle.dispatchEvent(
+          new ElementSlotDidChangeEvent(
+            context.name as string,
+            finalChanges,
+          ),
+        );
       });
 
       this.lifecycle.once(ElementLifecycleEvent.DidMount, () => {
@@ -126,7 +176,7 @@ export function Slotted(opts: SlottedOptions = {}) {
         for (let i = 0; i < children.length; i++) {
           const elem = children[i]!;
 
-          if (WcSlot.isSlot(elem) && matches(elem as S)) {
+          if (WcSlot.isSlot(elem) && filter(elem as S)) {
             initValue.push(elem as S);
             this.connectToWcSlot(elem);
           }
@@ -134,9 +184,24 @@ export function Slotted(opts: SlottedOptions = {}) {
 
         accessor.set.call(this, initValue);
 
-        this.requestUpdate();
+        const finalChanges: FinalChanges = {
+          added: initValue,
+          attributeChanged: [],
+          contentChanged: [],
+          removed: [],
+        };
+
+        if (
+          shouldRequestUpdate(accessor.get.call(this), finalChanges)
+        ) {
+          this.requestUpdate();
+        }
+
         this.lifecycle.dispatchEvent(
-          new ElementSlotDidChangeEvent(context.name as string),
+          new ElementSlotDidChangeEvent(
+            context.name as string,
+            finalChanges,
+          ),
         );
       });
     });

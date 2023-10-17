@@ -39,37 +39,58 @@ export class WcSlot extends HTMLElement {
   }
 
   private _handleObserverEvent(mutations: MutationRecord[]) {
-    let hasContentChanged = false;
-    let hasAttributeChanged = false;
-
-    for (let i = 0; i < mutations.length; i++) {
-      const mutation = mutations[i]!;
-      if (mutation.type === "childList") {
-        hasContentChanged = true;
-      } else if (mutation.type === "attributes") {
-        hasAttributeChanged = true;
-      }
-    }
-
-    if (hasAttributeChanged) {
+    if (this.shouldEmitAttributeChangeEvent(mutations)) {
       this.emitter.dispatchEvent(new SlotAttributeChangeEvent(this));
     }
-    if (hasContentChanged) {
+    if (this.shouldEmitContentChangeEvent(mutations)) {
       this.emitter.dispatchEvent(new SlotContentChangeEvent(this));
     }
   }
 
-  public connectedCallback() {
+  protected shouldEmitAttributeChangeEvent(
+    mutations: MutationRecord[],
+  ): boolean {
+    for (let i = 0; i < mutations.length; i++) {
+      const mutation = mutations[i]!;
+      if (
+        mutation.type === "attributes" &&
+        mutation.attributeName &&
+        mutation.oldValue !==
+          this.getAttribute(mutation.attributeName)
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  protected shouldEmitContentChangeEvent(
+    mutations: MutationRecord[],
+  ): boolean {
+    for (let i = 0; i < mutations.length; i++) {
+      const mutation = mutations[i]!;
+      if (
+        mutation.type === "childList" ||
+        mutation.type === "characterData"
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  protected connectedCallback() {
     this.style.display = "none";
     this._observer.observe(this, {
       attributes: true,
       characterData: true,
       childList: true,
       subtree: true,
+      attributeOldValue: true,
     });
   }
 
-  public disconnectedCallback(): void {
+  protected disconnectedCallback(): void {
     this._observer.disconnect();
   }
 }
