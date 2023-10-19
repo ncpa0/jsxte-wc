@@ -45,4 +45,11 @@ export class ArrayMap<K, V> {
   public values(): V[] {
     return this.entries.map(([, v]) => v);
   }
+
+  public forEach(cb: (value: V, key: K) => void): void {
+    for (let i = 0; i < this.entries.length; i++) {
+      const [key, value] = this.entries[i]!;
+      cb(value, key);
+    }
+  }
 }

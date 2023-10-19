@@ -13,16 +13,17 @@ export function State() {
       set(value: V) {
         const prevValue = accessor.get.call(this);
 
-        accessor.set.call(this, value);
-
-        this.requestUpdate();
-        this.lifecycle.dispatchEvent(
-          new ElementStateDidChangeEvent(
-            context.name as string,
-            prevValue,
-            value,
-          ),
-        );
+        if (!Object.is(prevValue, value)) {
+          accessor.set.call(this, value);
+          this.requestUpdate();
+          this.lifecycle.dispatchEvent(
+            new ElementStateDidChangeEvent(
+              context.name as string,
+              prevValue,
+              value,
+            ),
+          );
+        }
       },
     };
   };

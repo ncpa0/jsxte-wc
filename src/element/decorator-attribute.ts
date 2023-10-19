@@ -1,8 +1,15 @@
+import { Attribute as AttributeProxy } from "./attribute-controller";
 import { Element } from "./element";
 import { ElementLifecycleEvent } from "./element-events";
 
 export type AttributeOptions = {
-  type?: "boolean" | "number" | "string";
+  /**
+   * Set this to true to allow null values.
+   *
+   * When non-nullable, default values will be assigned to the
+   * attribute accessor when null.
+   */
+  nullable?: boolean;
   /**
    * By default the decorated property name will be used as the
    * attribute name.
@@ -12,28 +19,106 @@ export type AttributeOptions = {
    * Attribute name will always be converted to lowercase.
    */
   name?: string;
-};
+} & (
+  | {
+      type: "boolean";
+      /**
+       * When non-nullable defines the value that will be used when
+       * the attribute is set to null.
+       *
+       * If not specified `false` will be used.
+       */
+      default?: boolean;
+    }
+  | {
+      type: "number";
+      /**
+       * When non-nullable defines the value that will be used when
+       * the attribute is set to null.
+       *
+       * If not specified `0` will be used.
+       */
+      default?: number;
+    }
+  | {
+      type?: "string" | undefined;
+      /**
+       * When non-nullable defines the value that will be used when
+       * the attribute is set to null.
+       *
+       * If not specified `""` will be used.
+       */
+      default?: string;
+    }
+);
+
+function nullableNumberParser(value: string | null) {
+  return value === null ? null : Number(value);
+}
+
+function nonNullableNumberParser(
+  value: string | null,
+  defaultValue = 0,
+) {
+  return value === null ? defaultValue : Number(value);
+}
+
+function nullableStringParser(value: string | null) {
+  return value;
+}
+
+function nonNullableStringParser(
+  value: string | null,
+  defaultValue = "",
+) {
+  return value === null ? defaultValue : value;
+}
+
+function nullableBooleanParser(value: string | null) {
+  switch (value) {
+    case "true":
+      return true;
+    case "false":
+      return false;
+  }
+  return null;
+}
+
+function nonNullableBooleanParser(
+  value: string | null,
+  defaultValue = false,
+) {
+  switch (value) {
+    case "true":
+      return true;
+    case "false":
+      return false;
+  }
+  return defaultValue;
+}
 
 function attribValueParserFactory<V>(
-  type: Exclude<AttributeOptions["type"], undefined>,
-): (v: string) => V {
-  switch (type) {
+  opts: AttributeOptions,
+): (v: string | null) => V {
+  const { nullable = false } = opts;
+
+  switch (opts.type) {
     case "number":
-      return (value: string) => Number(value) as V;
-    case "string":
-      return (value: string) => value as V;
+      if (nullable) {
+        return nullableNumberParser as any;
+      }
+      return (v) => nonNullableNumberParser(v, opts.default) as any;
     case "boolean":
-      return (value: string) => {
-        const lower = value.toLowerCase();
-        switch (lower) {
-          case "true":
-            return true as V;
-          case "false":
-            return false as V;
-        }
-        return Boolean(value) as V;
-      };
+      if (nullable) {
+        return nullableBooleanParser as any;
+      }
+      return (v) => nonNullableBooleanParser(v, opts.default) as any;
   }
+
+  if (nullable) {
+    return nullableStringParser as any;
+  }
+  return (v) => nonNullableStringParser(v, opts.default) as any;
 }
 
 export function Attribute(opts: AttributeOptions = {}) {
@@ -44,53 +129,38 @@ export function Attribute(opts: AttributeOptions = {}) {
     const attributeName = (
       opts.name ?? (context.name as string)
     ).toLowerCase();
-    const valueParser = attribValueParserFactory<V>(
-      opts.type ?? "string",
-    );
-
-    let setAttributeTo: string | null = null;
-
-    context.addInitializer(function () {
-      this.observeAttribute(attributeName);
-
-      this.lifecycle.addEventListener(
-        ElementLifecycleEvent.AttributeDidChange,
-        (event) => {
-          if (event.detail.attributeName === attributeName) {
-            accessor.set.call(
-              this,
-              valueParser(String(event.detail.newValue)),
-            );
-            this.requestUpdate();
-          }
-        },
-      );
-
-      this.lifecycle.once(ElementLifecycleEvent.WillMount, () => {
-        if (setAttributeTo !== null) {
-          this.setAttribute(attributeName, setAttributeTo);
-        }
-      });
-    });
+    const valueParser = attribValueParserFactory<V>(opts);
 
     return {
       get() {
-        return accessor.get.call(this);
+        return this["_attributeController"]
+          .getAttribute(attributeName)
+          ?.get();
       },
       set(value: V) {
-        // This should trigger the mutation observer
-        // and the event listener above.
-        this.setAttribute(attributeName, String(value));
+        this["_attributeController"]
+          .getAttribute(attributeName)
+          ?.set(value);
       },
       init(value) {
-        const initialValue = this.getAttribute(attributeName);
-        if (initialValue !== null) {
-          return valueParser(initialValue);
+        const attr = new AttributeProxy(attributeName, valueParser);
+        this["_attributeController"].registerAttribute(attr);
+
+        const htmlValue = this.getAttribute(attributeName);
+        if (htmlValue !== null) {
+          attr.setInternal(valueParser(htmlValue));
+        } else {
+          attr.setInternal(value == null ? valueParser(null) : value);
         }
-        if (value != null) {
-          setAttributeTo = String(value);
-        }
-        return value;
+
+        this.lifecycle.on(ElementLifecycleEvent.WillMount, () => {
+          const htmlValue = this.getAttribute(attributeName);
+          if (!attr.isEqualToRaw(htmlValue)) {
+            attr.setInternal(valueParser(htmlValue));
+          }
+        });
+
+        return attr.get()!;
       },
     };
   };

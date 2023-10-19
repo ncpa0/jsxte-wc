@@ -1,6 +1,7 @@
 import { renderToJson } from "jsxte";
 import { EventEmitter } from "../utils/event-emitter";
 import { VirtualElement } from "../vdom/virtual-element";
+import { AttributeController } from "./attribute-controller";
 import { OnSlotChangeCallback } from "./decorator-slotted";
 import {
   ElementAttributeDidChangeEvent,
@@ -43,6 +44,7 @@ export abstract class Element extends HTMLElement {
   private _attributeObserver = new MutationObserver((a) =>
     this._handleObserverEvent(a),
   );
+  private _attributeController = new AttributeController(this);
   private _observedAttributes: string[] = [];
   private _isObservingSlots = false;
   private _slotChangeListeners: OnSlotChangeCallback[] = [];
@@ -68,6 +70,7 @@ export abstract class Element extends HTMLElement {
 
   private _performFirstMount(): () => void {
     this.lifecycle.dispatchEvent(new ElementWillMountEvent());
+    this._attributeController.syncUpAll();
     const jsxElem = this.render();
     const json = renderToJson(jsxElem);
     this._vroot = VirtualElement.createFor("<root>", this._root);
@@ -97,13 +100,17 @@ export abstract class Element extends HTMLElement {
     for (let i = 0; i < mutationRecord.length; i++) {
       const record = mutationRecord[i]!;
       if (record.attributeName) {
-        this.lifecycle.dispatchEvent(
-          new ElementAttributeDidChangeEvent(
-            record.attributeName,
-            record.oldValue,
-            this.getAttribute(record.attributeName),
-          ),
-        );
+        this._attributeController.detectedPossibleChange(record);
+        // const newValue = this.getAttribute(record.attributeName);
+        // if (!Object.is(record.oldValue, newValue)) {
+        //   this.lifecycle.dispatchEvent(
+        //     new ElementAttributeDidChangeEvent(
+        //       record.attributeName,
+        //       record.oldValue,
+        //       newValue,
+        //     ),
+        //   );
+        // }
       } else if (record.type === "childList") {
         this._handleContentMutation(record);
       }
