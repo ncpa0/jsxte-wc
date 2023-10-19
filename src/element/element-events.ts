@@ -5,6 +5,7 @@ export enum ElementLifecycleEvent {
   DidUpdate = "element-did-update",
   WillMount = "element-will-mount",
   DidMount = "element-did-mount",
+  DidUnmount = "element-did-unmount",
   SlotDidChange = "element-slot-did-change",
   StateDidChange = "element-state-did-change",
   AttributeDidChange = "element-attribute-did-change",
@@ -39,6 +40,14 @@ export class ElementDidMountEvent extends CustomEvent<undefined> {
 
   constructor() {
     super(ElementLifecycleEvent.DidMount);
+  }
+}
+
+export class ElementDidUnmountEvent extends CustomEvent<undefined> {
+  declare type: ElementLifecycleEvent.DidUnmount;
+
+  constructor() {
+    super(ElementLifecycleEvent.DidUnmount);
   }
 }
 
@@ -107,6 +116,7 @@ export type AllElementLifecycleEvents =
   | ElementDidUpdateEvent
   | ElementWillMountEvent
   | ElementDidMountEvent
+  | ElementDidUnmountEvent
   | ElementSlotDidChangeEvent
   | ElementStateDidChangeEvent
   | ElementAttributeDidChangeEvent;

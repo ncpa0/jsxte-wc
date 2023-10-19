@@ -51,7 +51,11 @@ export class Attribute<V> {
   }
 
   public syncUp(element: Element) {
-    element.setAttribute(this.name, String(this.current));
+    if (this.current === null) {
+      element.removeAttribute(this.name);
+    } else {
+      element.setAttribute(this.name, String(this.current));
+    }
   }
 }
 

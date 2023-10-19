@@ -6,6 +6,7 @@ import { OnSlotChangeCallback } from "./decorator-slotted";
 import {
   ElementAttributeDidChangeEvent,
   ElementDidMountEvent,
+  ElementDidUnmountEvent,
   ElementDidUpdateEvent,
   ElementLifecycleEvent,
   ElementSlotDidChangeEvent,
@@ -23,6 +24,10 @@ import {
 export type Dependency<T> = {
   getValue: () => T;
   name: string;
+};
+
+export type Effect = {
+  isFirstMount: boolean;
 };
 
 const noop = () => {};
@@ -238,11 +243,14 @@ export abstract class Element extends HTMLElement {
         this.disconnectFromWcSlot(child);
       }
     }
+
+    this.lifecycle.dispatchEvent(new ElementDidUnmountEvent());
   }
 
   /**
    * Registers a callback that will be ran on every change of the
-   * specified dependencies (attribute or state).
+   * specified dependencies (attribute or state) and after first
+   * mount.
    *
    * This effect always happens after the DOM has been updated.
    *
@@ -250,7 +258,7 @@ export abstract class Element extends HTMLElement {
    */
   public effect<E extends Element>(
     this: E,
-    cb: () => void | (() => void),
+    cb: (effect: Effect) => void | (() => void),
     getDependencies: (select: {
       [K in keyof Omit<E, keyof Element | "render">]: Dependency<
         E[K]
@@ -260,22 +268,79 @@ export abstract class Element extends HTMLElement {
     const deps = getDependencies(this._dependencySelector);
 
     let cleanup = noop;
-    const callback = () => {
+
+    const runCleanup = () => {
       cleanup();
-      cleanup = cb() || noop;
+      cleanup = noop;
+    };
+
+    const callback = (effect: Effect) => {
+      runCleanup();
+      cleanup = cb(effect) ?? noop;
     };
 
     if (!deps) {
-      this.lifecycle.on(ElementLifecycleEvent.DidUpdate, callback);
+      const didMountHandler = () => {
+        callback({
+          isFirstMount: true,
+        });
+      };
+      const didUpdateHandler = () => {
+        callback({
+          isFirstMount: false,
+        });
+      };
+
+      this.lifecycle.once(
+        ElementLifecycleEvent.DidUnmount,
+        runCleanup,
+      );
+      this.lifecycle.once(
+        ElementLifecycleEvent.DidMount,
+        didMountHandler,
+      );
+      this.lifecycle.on(
+        ElementLifecycleEvent.DidUpdate,
+        didUpdateHandler,
+      );
       return () => {
-        this.lifecycle.off(ElementLifecycleEvent.DidUpdate, callback);
+        this.lifecycle.off(
+          ElementLifecycleEvent.DidUnmount,
+          runCleanup,
+        );
+        this.lifecycle.off(
+          ElementLifecycleEvent.DidMount,
+          didMountHandler,
+        );
+        this.lifecycle.off(
+          ElementLifecycleEvent.DidUpdate,
+          didUpdateHandler,
+        );
+
+        runCleanup();
       };
     }
 
     if (deps.length === 0) {
-      this.lifecycle.once(ElementLifecycleEvent.DidMount, callback);
+      const handler = () => {
+        callback({
+          isFirstMount: true,
+        });
+      };
+
+      this.lifecycle.once(
+        ElementLifecycleEvent.DidUnmount,
+        runCleanup,
+      );
+      this.lifecycle.once(ElementLifecycleEvent.DidMount, handler);
       return () => {
-        this.lifecycle.off(ElementLifecycleEvent.DidMount, callback);
+        this.lifecycle.off(
+          ElementLifecycleEvent.DidUnmount,
+          runCleanup,
+        );
+        this.lifecycle.off(ElementLifecycleEvent.DidMount, handler);
+
+        runCleanup();
       };
     }
 
@@ -307,9 +372,24 @@ export abstract class Element extends HTMLElement {
     const didUpdateHandler = () => {
       if (runCallbackOnNextUpdate) {
         runCallbackOnNextUpdate = false;
-        callback();
+        callback({
+          isFirstMount: false,
+        });
       }
     };
+
+    const didMountHandler = () => {
+      runCallbackOnNextUpdate = false;
+      callback({
+        isFirstMount: true,
+      });
+    };
+
+    this.lifecycle.once(
+      ElementLifecycleEvent.DidMount,
+      didMountHandler,
+    );
+    this.lifecycle.once(ElementLifecycleEvent.DidUnmount, runCleanup);
 
     this.lifecycle.on(
       ElementLifecycleEvent.AttributeDidChange,
@@ -328,7 +408,16 @@ export abstract class Element extends HTMLElement {
       didUpdateHandler,
     );
 
-    const stop = (): void => {
+    const cancel = (): void => {
+      this.lifecycle.off(
+        ElementLifecycleEvent.DidMount,
+        didMountHandler,
+      );
+      this.lifecycle.off(
+        ElementLifecycleEvent.DidUnmount,
+        runCleanup,
+      );
+
       this.lifecycle.off(
         ElementLifecycleEvent.AttributeDidChange,
         attribChangeHandler,
@@ -345,14 +434,17 @@ export abstract class Element extends HTMLElement {
         ElementLifecycleEvent.DidUpdate,
         didUpdateHandler,
       );
+
+      runCleanup();
     };
 
-    return stop;
+    return cancel;
   }
 
   /**
    * Registers a callback that will be ran on every change of the
-   * specified dependencies (attribute or state).
+   * specified dependencies (attribute or state) and before first
+   * mount.
    *
    * This effect always happens right before the render, meaning that
    * state and attribute changes within it will affect the subsequent
@@ -362,7 +454,7 @@ export abstract class Element extends HTMLElement {
    */
   public immediateEffect<E extends Element>(
     this: E,
-    cb: () => void | (() => void),
+    cb: (effect: Effect) => void | (() => void),
     getDependencies: (select: {
       [K in keyof Omit<E, keyof Element | "render">]: Dependency<
         E[K]
@@ -372,25 +464,70 @@ export abstract class Element extends HTMLElement {
     const deps = getDependencies(this._dependencySelector);
 
     let cleanup = noop;
-    const callback = () => {
+
+    const runCleanup = () => {
       cleanup();
-      cleanup = cb() || noop;
+      cleanup = noop;
+    };
+
+    const callback = (effect: Effect) => {
+      runCleanup();
+      cleanup = cb(effect) ?? noop;
     };
 
     if (!deps) {
-      this.lifecycle.on(ElementLifecycleEvent.WillUpdate, callback);
+      const willMountHandler = () => {
+        callback({
+          isFirstMount: true,
+        });
+      };
+      const willUpdateHandler = () => {
+        callback({
+          isFirstMount: false,
+        });
+      };
+
+      this.lifecycle.once(
+        ElementLifecycleEvent.DidUnmount,
+        runCleanup,
+      );
+      this.lifecycle.once(
+        ElementLifecycleEvent.WillMount,
+        willMountHandler,
+      );
+      this.lifecycle.on(
+        ElementLifecycleEvent.WillUpdate,
+        willUpdateHandler,
+      );
       return () => {
         this.lifecycle.off(
-          ElementLifecycleEvent.WillUpdate,
-          callback,
+          ElementLifecycleEvent.DidUnmount,
+          runCleanup,
         );
+        this.lifecycle.off(
+          ElementLifecycleEvent.WillMount,
+          willMountHandler,
+        );
+        this.lifecycle.off(
+          ElementLifecycleEvent.WillUpdate,
+          willUpdateHandler,
+        );
+
+        runCleanup();
       };
     }
 
     if (deps.length === 0) {
-      this.lifecycle.once(ElementLifecycleEvent.WillMount, callback);
+      const handler = () => {
+        callback({
+          isFirstMount: true,
+        });
+      };
+      this.lifecycle.once(ElementLifecycleEvent.WillMount, handler);
       return () => {
-        this.lifecycle.off(ElementLifecycleEvent.WillMount, callback);
+        this.lifecycle.off(ElementLifecycleEvent.WillMount, handler);
+
+        runCleanup();
       };
     }
 
@@ -422,9 +559,24 @@ export abstract class Element extends HTMLElement {
     const willUpdateHandler = () => {
       if (runCallbackOnNextUpdate) {
         runCallbackOnNextUpdate = false;
-        callback();
+        callback({
+          isFirstMount: false,
+        });
       }
     };
+
+    const willMountHandler = () => {
+      runCallbackOnNextUpdate = false;
+      callback({
+        isFirstMount: true,
+      });
+    };
+
+    this.lifecycle.once(
+      ElementLifecycleEvent.WillMount,
+      willMountHandler,
+    );
+    this.lifecycle.once(ElementLifecycleEvent.DidUnmount, runCleanup);
 
     this.lifecycle.on(
       ElementLifecycleEvent.AttributeDidChange,
@@ -443,7 +595,16 @@ export abstract class Element extends HTMLElement {
       willUpdateHandler,
     );
 
-    const stop = (): void => {
+    const cancel = (): void => {
+      this.lifecycle.off(
+        ElementLifecycleEvent.WillMount,
+        willMountHandler,
+      );
+      this.lifecycle.off(
+        ElementLifecycleEvent.DidUnmount,
+        runCleanup,
+      );
+
       this.lifecycle.off(
         ElementLifecycleEvent.AttributeDidChange,
         attribChangeHandler,
@@ -460,9 +621,11 @@ export abstract class Element extends HTMLElement {
         ElementLifecycleEvent.WillUpdate,
         willUpdateHandler,
       );
+
+      runCleanup();
     };
 
-    return stop;
+    return cancel;
   }
 
   protected abstract render(): JSX.Element;
