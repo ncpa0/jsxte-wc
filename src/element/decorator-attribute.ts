@@ -48,6 +48,8 @@ export function Attribute(opts: AttributeOptions = {}) {
       opts.type ?? "string",
     );
 
+    let setAttributeTo: string | null = null;
+
     context.addInitializer(function () {
       this.observeAttribute(attributeName);
 
@@ -63,6 +65,12 @@ export function Attribute(opts: AttributeOptions = {}) {
           }
         },
       );
+
+      this.lifecycle.once(ElementLifecycleEvent.WillMount, () => {
+        if (setAttributeTo !== null) {
+          this.setAttribute(attributeName, setAttributeTo);
+        }
+      });
     });
 
     return {
@@ -80,7 +88,7 @@ export function Attribute(opts: AttributeOptions = {}) {
           return valueParser(initialValue);
         }
         if (value != null) {
-          this.setAttribute(attributeName, String(value));
+          setAttributeTo = String(value);
         }
         return value;
       },
