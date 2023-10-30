@@ -52,52 +52,65 @@ export type AttributeOptions = {
     }
 );
 
-function nullableNumberParser(value: string | null) {
+function nullableNumberParser(value: string | null): number | null {
   return value === null ? null : Number(value);
 }
 
 function nonNullableNumberParser(
   value: string | null,
   defaultValue = 0,
-) {
+): number {
   return value === null ? defaultValue : Number(value);
 }
 
-function nullableStringParser(value: string | null) {
+function nullableStringParser(value: string | null): string | null {
   return value;
 }
 
 function nonNullableStringParser(
   value: string | null,
   defaultValue = "",
-) {
+): string {
   return value === null ? defaultValue : value;
 }
 
-function nullableBooleanParser(value: string | null) {
+function nullableBooleanParser(
+  attributeName: string,
+  value: string | null,
+): boolean | null {
   switch (value) {
+    case "":
     case "true":
       return true;
     case "false":
       return false;
   }
+
+  if (typeof value === "string") {
+    return value === attributeName;
+  }
+
   return null;
 }
 
 function nonNullableBooleanParser(
+  attributeName: string,
   value: string | null,
   defaultValue = false,
-) {
+): boolean {
   switch (value) {
+    case "":
     case "true":
       return true;
     case "false":
       return false;
   }
-  return defaultValue;
+
+  return value === attributeName ? true : defaultValue;
 }
 
 function attribValueParserFactory<V>(
+  attributeName: string,
   opts: AttributeOptions,
 ): (v: string | null) => V {
   const { nullable = false } = opts;
@@ -110,9 +123,14 @@ function attribValueParserFactory<V>(
       return (v) => nonNullableNumberParser(v, opts.default) as any;
     case "boolean":
       if (nullable) {
-        return nullableBooleanParser as any;
+        return (v) => nullableBooleanParser(attributeName, v) as any;
       }
-      return (v) => nonNullableBooleanParser(v, opts.default) as any;
+      return (v) =>
+        nonNullableBooleanParser(
+          attributeName,
+          v,
+          opts.default,
+        ) as any;
   }
 
   if (nullable) {
@@ -129,7 +147,10 @@ export function Attribute(opts: AttributeOptions = {}) {
     const attributeName = (
       opts.name ?? (context.name as string)
     ).toLowerCase();
-    const valueParser = attribValueParserFactory<V>(opts);
+    const valueParser = attribValueParserFactory<V>(
+      attributeName,
+      opts,
+    );
 
     return {
       get() {
